@@ -53,7 +53,7 @@ def device_list(cloud_type)
     ('j'..'m').each { |e| device << "/dev/sd#{e}" }
     ('d'..'h').each { |e| device << "xvd#{e}" }
   when "vsphere"
-    device = ["(create) lsiLogic(0:0)", "(create) lsiLogic(1:0)"]
+    device = ['lsiLogic(0:0)', 'lsiLogic(1:0)']
   end
   device
 end
