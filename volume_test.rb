@@ -105,7 +105,7 @@ volumes_count = 2
 
 log "devices are #{get_current_devices}"
 initial_devices = get_current_devices
-log system("cat /proc/partitions")
+log IO.read('/proc/partitions')
 
 # Set required parameters
 params = {
