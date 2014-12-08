@@ -14,8 +14,6 @@ end
 require 'right_api_client'
 
 def initialize_api_client
-  # Require gems in initialize
-
   require "/var/spool/cloud/user-data.rb"
   account_id, instance_token = ENV["RS_API_TOKEN"].split(":")
   api_url = "https://#{ENV["RS_SERVER"]}"
@@ -95,7 +93,6 @@ testfile = mount_point + '/testfile'
 md5_snap = nil
 md5_orig = nil
 volumes_count = 2
-
     
 puts "devices are #{get_current_devices}"
 initial_devices = get_current_devices
@@ -115,19 +112,20 @@ params[:volume][:datacenter_href] = datacenter_href["href"] if datacenter_href
 
 puts params[:volume][:datacenter_href]
 
-case cloud_type
-when "rackspace-ng", "vsphere"
-  
-  if size < 100 && cloud_type == "rackspace-ng"
-    raise "Minimum volume size supported by this cloud is 100 GB." +
-      " Volume size requested #{size.to_s} GB."
-  end
+# Some clouds require a volume_type parameter
+params[:volume][:volume_type_href] = case cloud_type
+when "rackspace-ng"
+  raise "Minimum volume size supported by this cloud is 100 GB. Volume size requested #{size.to_s} GB." if size < 100
   
   volume_types = @client.volume_types.index
   volume_type = volume_types.first
 
-  params[:volume][:volume_type_href] = volume_type.href
-  
+  volume_type.href
+when 'vsphere'
+  volume_types = @client.volume_types.index
+  volume_type = volume_types.first
+
+  volume_type.href
 when "cloudstack"
   
   volume_types = @client.volume_types.index
@@ -164,8 +162,10 @@ when "cloudstack"
       " (#{volume_type.resource_uid}) which is #{volume_type.size} GB"
   end
 
-  params[:volume][:volume_type_href] = volume_type.href
-  
+  volume_type.href
+
+else
+  nil
 end
 
 puts "Requests volume creation with params = #{params.inspect}"
