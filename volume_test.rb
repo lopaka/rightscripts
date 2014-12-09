@@ -441,7 +441,11 @@ Timeout::timeout(900) do
       :description => 'test description'
     }
   }
-  new_backup = @client.backups.create(params)
+  multi_vol_snapshot = @client.backups.create(params)
+  while (completed = multi_vol_snapshot.show.completed) != true
+    log "MULTI VOLUME - Waiting for snapshot to complete...state is '#{completed}'"
+    sleep 2
+  end
 end
 
 log "MULTI VOLUME - Performing volumes detach..."
