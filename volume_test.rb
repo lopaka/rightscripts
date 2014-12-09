@@ -393,34 +393,36 @@ created_volumes.each do |vol|
     # Wait until the volume is successfully created. A volume is said to be created
     # if volume status is "available" or "provisioned".
     name = vol.show.name
+    log "MULTI VOLUME - Checking for creation of volume '#{name}'"
     while (status = vol.show.status) !~ /^available|provisioned$/
       log "MULTI VOLUME - Waiting for volume '#{name}' to create...current status is '#{status}'"
       raise "Creation of volume has failed." if status == "failed"
       sleep 2
     end
+    log "MULTI VOLUME - volume '#{name}' current status is '#{vol.show.status}'"
   end
 end
 
-log "MULTI VOLUME - Requests multiple volume attachments..."
 # Attach multiple volumes and wait until all volumes become "in-use"
-created_volumes.each_index do |i|
+created_volumes.each_with_index do |vol, i|
   Timeout::timeout(900) do
     attach_params = {
       :volume_attachment => {
         :device => device_list(cloud_type)[i],
         :instance_href => instance.show.href,
-        :volume_href => created_volumes[i].show.href,
+        :volume_href => vol.show.href,
       }
     }
 
     attachment = @client.volume_attachments.create(attach_params)
 
-    name = created_volumes[i].show.name
-    while (state = attachment.show.state) != 'attached' && (status = created_volumes[i].show.status) != 'in-use'
+    name = vol.show.name
+    log "MULTI VOLUME - Requesting attachement of #{name}"
+    while (state = attachment.show.state) != 'attached' && (status = vol.show.status) != 'in-use'
       log "MULTI VOLUME - Waiting for volume #{name} to attach...current state / status is #{state} / #{status}"
       sleep 2
     end
-    raise "Volume attachment failed" if @client.volume_attachments.index(:filter => ["volume_href==#{created_volumes[i].show.href}"]).nil?
+    raise "Volume attachment failed" if @client.volume_attachments.index(:filter => ["volume_href==#{vol.show.href}"]).nil?
   end
 end
 scan_for_attachments
