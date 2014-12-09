@@ -102,16 +102,16 @@ def scan_for_detachments
     end
 
     if device_available
-      Chef::Log.info "Device #{device} appears to still be in use - no changes made."
+      log " -- Device #{device} appears to still be in use - no changes made."
     else
       device_name = ::File.basename(device)
       scan_file = "/sys/block/#{device_name}/device/delete"
       if ::File.exist?(scan_file)
-        Chef::Log.info "Manual removal of #{device}."
+        log " -- Manual removal of #{device}."
         ::File.open(scan_file, 'w') { |file| file.puts '1' }
         sleep 1
       else
-        Chef::Log.info "Scan file #{scan_file} does not exists to remove #{device} - no changes made."
+        log " -- Scan file #{scan_file} does not exists to remove #{device} - no changes made."
       end
     end
   end
@@ -197,6 +197,10 @@ params[:volume][:volume_type_href] =
   else
     nil
   end
+
+log "SINGLE VOLUME - initial scanning for attached and detached devices"
+scan_for_attachments
+scan_for_detachments
 
 log "SINGLE VOLUME - Requests volume creation with params = #{params.inspect}"
 # Create volume and wait until the volume becomes "available" or "provisioned"
