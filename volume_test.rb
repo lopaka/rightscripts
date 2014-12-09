@@ -256,7 +256,7 @@ snapshot_params = {
   }
 }
 
-log "Takes snapshot from attached volume"
+log "Takes snapshot from attached volume - #{snapshot_params.inspect}"
 created_snapshot = nil
 Timeout::timeout(900) do
   log "Taking snapshot #{snapshot_name} from volume #{volume_name1}..."
