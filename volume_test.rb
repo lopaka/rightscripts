@@ -314,6 +314,8 @@ params[:volume][:parent_volume_snapshot_href] = @client.volume_snapshots.index(:
 params[:volume][:name] = volume_name
 params[:volume][:description] = "Restore volume from snapshot"
 
+
+volume_from_snapshot = nil
 Timeout::timeout(900) do
   log "SINGLE VOLUME - Restoring volume from snapshot with params = #{params.inspect}"
   volume_from_snapshot = @client.volumes.create(params)
