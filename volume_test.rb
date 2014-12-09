@@ -335,8 +335,7 @@ end
 log "SINGLE VOLUME - destroying restored volume #{volume_from_snapshot.show.name}"
 volume_from_snapshot.destroy
 
-exit
-
+=begin
 log "Requesting 2 volumes creation..."
 created_volumes = []
 Timeout::timeout(900) do
@@ -483,3 +482,4 @@ created_volumes.each do |vol|
     end
   end
 end
+=end
