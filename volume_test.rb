@@ -1,6 +1,8 @@
 #!/usr/bin/ruby
 
-# add packages: ruby19 rubygems19 ruby19-devel gcc
+# add packages:
+# centos - ruby19 rubygems19 ruby19-devel gcc
+# ubuntu - ruby1.9.1 rubygems1.9.1 ruby1.9.1-dev rubygems1.9.1 gcc
 
 require 'rubygems'
 
@@ -169,7 +171,7 @@ else
 end
 
 log "Requests volume creation with params = #{params.inspect}"
-# Create volume and wait until the volume becomes "available" or "provisioned" (in azure)
+# Create volume and wait until the volume becomes "available" or "provisioned"
 created_volume = nil
 Timeout::timeout(900) do
   created_volume = @client.volumes.create(params)
@@ -187,14 +189,14 @@ end
 
 attachment_params = {
   :volume_attachment => {
-    :device => device_list(cloud_type).first,
-    :instance_href => @client.get_instance.show.href,
     :volume_href => created_volume.show.href,
+    :instance_href => @client.get_instance.show.href,
+    :device => device_list(cloud_type).first,
   }
 }
 
 log "Requests volume attachment with params = #{attachment_params.inspect}"
-# Attach  volume and wait until the volume becomes "in-use"
+# Attach volume and wait until the volume becomes "in-use"
 attached_volume = nil
 Timeout::timeout(900) do
   attached_volume = @client.volume_attachments.create(attachment_params)
