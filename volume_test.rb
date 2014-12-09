@@ -53,7 +53,8 @@ def device_list(cloud_type)
     ('j'..'m').map { |e| "/dev/sd#{e}" }
     ('d'..'h').map { |e| "xvd#{e}" }
   when "vsphere"
-    ['lsiLogic(0:0)', 'lsiLogic(1:0)']
+    # 'lsiLogic(0:0)', 'lsiLogic(0:1)', ... skipping *:7 which is reserved for the controller
+    (0..3).to_a.product((0..15).to_a).map { |controller_id, node_id| node_id == 7 ? next : "lsiLogic(#{controller_id}:#{node_id})" }
   end
 end
 
