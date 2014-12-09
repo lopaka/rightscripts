@@ -9,7 +9,7 @@ require 'rubygems'
 begin
   gem "right_api_client"
 rescue LoadError
-  system("gem install right_api_client")
+  system('gem install right_api_client --no-ri --no-rdoc')
   Gem.clear_paths
 end
 
