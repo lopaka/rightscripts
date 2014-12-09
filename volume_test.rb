@@ -76,10 +76,46 @@ def get_current_devices
 end
 
 def scan_for_attachments
-  if File.exist?("/sys/class/scsi_host/host0/scan")
-    system("echo '- - -' > /sys/class/scsi_host/host0/scan")
-    sleep 5
+  # Check for /sys/class/scsi_host/host*/scan files.
+  scan_files = ::Dir.glob('/sys/class/scsi_host/host*/scan')
+  scan_files.each do |scan_file|
+    ::File.open(scan_file, 'w') { |file| file.puts '- - -' }
+    sleep 1
   end
+end
+
+def scan_for_detachments
+  # Get current list of block devices.
+  current_devices = get_current_devices
+
+  # Exclude '/dev/sda', which is often used for the / (root) partition, as we do not
+  # want to remove the root partition device.
+  current_devices.delete('/dev/sda')
+
+  # Iterate through block devices if it should be removed.
+  current_devices.each do |device|
+    # If able to read directly from block device, assume it is still in use.
+    device_available = begin
+      ::File.binread(device, 8) ? true : false
+    rescue Errno::EIO
+      false
+    end
+
+    if device_available
+      Chef::Log.info "Device #{device} appears to still be in use - no changes made."
+    else
+      device_name = ::File.basename(device)
+      scan_file = "/sys/block/#{device_name}/device/delete"
+      if ::File.exist?(scan_file)
+        Chef::Log.info "Manual removal of #{device}."
+        ::File.open(scan_file, 'w') { |file| file.puts '1' }
+        sleep 1
+      else
+        Chef::Log.info "Scan file #{scan_file} does not exists to remove #{device} - no changes made."
+      end
+    end
+  end
+
 end
 
 # prevent restclient from logging to screen
