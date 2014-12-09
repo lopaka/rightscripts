@@ -309,6 +309,7 @@ end
 log "SINGLE VOLUME - destroying volume #{created_volume.show.name}"
 parent_href = created_volume.show.href
 created_volume.destroy
+scan_for_detachments
 
 params[:volume][:parent_volume_snapshot_href] = @client.volume_snapshots.index(:filter => ["parent_volume_href==#{parent_href}"]).first.show.href
 params[:volume][:name] = volume_name
@@ -376,6 +377,7 @@ end
 
 log "SINGLE VOLUME - destroying restored volume #{volume_from_snapshot.show.name}"
 volume_from_snapshot.destroy
+scan_for_detachments
 
 =begin
 log "Requesting 2 volumes creation..."
