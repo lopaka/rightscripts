@@ -382,7 +382,7 @@ scan_for_detachments
 log "MULTI VOLUME - Requesting multi volumes creation..."
 created_volumes = []
 Timeout::timeout(900) do
-  2.each do |i|
+  2.times do |i|
     params[:volume][:name] = volume_name + '_' + i.to_s
     created_volumes << @client.volumes.create(params)
   end
