@@ -22,7 +22,6 @@ def log(message)
   Syslog.open('volume_testing', Syslog::LOG_PID | Syslog::LOG_CONS) { |s| s.warning message }
 end
 
-
 def initialize_api_client
   require "/var/spool/cloud/user-data.rb"
   account_id, instance_token = ENV["RS_API_TOKEN"].split(":")
@@ -427,6 +426,9 @@ created_volumes.each_with_index do |vol, i|
 end
 scan_for_attachments
 
+# TODO
+# LVM, format, mount, create data
+
 log "MULTI VOLUME - Requesting multiple volume backups (volume snapshots)..."
 Timeout::timeout(900) do
   attached_volumes = @client.volume_attachments.index(:filter => ["instance_href==#{instance.href}"])
@@ -447,6 +449,9 @@ Timeout::timeout(900) do
     sleep 2
   end
 end
+
+# TODO
+# umount, deconstruct LVM
 
 log "MULTI VOLUME - Performing volumes detach..."
 created_volumes.each do |vol|
