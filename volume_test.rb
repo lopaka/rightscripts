@@ -136,6 +136,8 @@ testfile = mount_point + '/testfile'
 md5_snap = nil
 md5_orig = nil
 
+multi_volume_count = 2
+
 # Set required parameters
 params = {
   :volume => {
@@ -382,7 +384,7 @@ scan_for_detachments
 log "MULTI VOLUME - Requesting multi volumes creation..."
 created_volumes = []
 Timeout::timeout(900) do
-  2.times do |i|
+  multi_volume_count.times do |i|
     params[:volume][:name] = volume_name + '_' + i.to_s
     created_volumes << @client.volumes.create(params)
   end
