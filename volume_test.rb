@@ -39,25 +39,23 @@ def initialize_api_client
 end
 
 def device_list(cloud_type)
-  device = []
   case cloud_type
   when "gce"
-    (1..15).each { |e| device << "persistent-disk-#{e}" }
+    (1..15).map { |e| "persistent-disk-#{e}" }
   when "cloudstack"
-    (1..15).each { |e| device << "device_id:#{e}" }
+    (1..15).map { |e| "device_id:#{e}" }
   when "rackspace-ng"
-    ('d'..'z').each { |e| device << "/dev/xvd#{e}" }
+    ('d'..'z').map{ |e| "/dev/xvd#{e}" }
   when "azure"
-    (0..15).each { |e| device << sprintf('%02d', e) }
+    (0..15).map { |e| sprintf('%02d', e) }
   when "openstack"
-    ('c'..'z').each { |e| device << "/dev/vd#{e}" }
+    ('c'..'z').map { |e| "/dev/vd#{e}" }
   when "ec2"
-    ('j'..'m').each { |e| device << "/dev/sd#{e}" }
-    ('d'..'h').each { |e| device << "xvd#{e}" }
+    ('j'..'m').map { |e| "/dev/sd#{e}" }
+    ('d'..'h').map { |e| "xvd#{e}" }
   when "vsphere"
-    device = ['lsiLogic(0:0)', 'lsiLogic(1:0)']
+    ['lsiLogic(0:0)', 'lsiLogic(1:0)']
   end
-  device
 end
 
 def get_current_devices
@@ -90,29 +88,24 @@ RestClient.log = nil
 @client = initialize_api_client
 instance = @client.get_instance
 
-# define cloud type
+# determine cloud type
 cloud_type = IO.read('/etc/rightscale.d/cloud').strip
 
 # set variables
 size = cloud_type == "rackspace-ng" ? 100 : 1
-volume_name1 = "QTEST VOLUME1"
-volume_name2 = "QTEST VOLUME2"
-volume_name3 = "QTEST VOLUME3_"
+volume_name = "QTEST VOLUME"
 snapshot_name = "QTEST SNAPSHOT"
 mount_point = '/mnt/storage'
 testfile = mount_point + '/testfile'
 md5_snap = nil
 md5_orig = nil
-volumes_count = 2
 
-log "devices are #{get_current_devices}"
 initial_devices = get_current_devices
-log IO.read('/proc/partitions')
 
 # Set required parameters
 params = {
   :volume => {
-    :name => volume_name1,
+    :name => volume_name,
     :description => "Testing volume/snapshot support",
     :size => size,
   }
@@ -124,53 +117,52 @@ params[:volume][:datacenter_href] = datacenter_href["href"] if datacenter_href
 log params[:volume][:datacenter_href]
 
 # Some clouds require a volume_type parameter
-params[:volume][:volume_type_href] = case cloud_type
-when 'rackspace-ng', 'vsphere'
-  volume_types = @client.volume_types.index
-  volume_type = volume_types.first
-
-  volume_type.href
-when "cloudstack"
-
-  volume_types = @client.volume_types.index
-  custom_volume_types = volume_types.select { |type| type.size.to_i == 0 }
-
-  if custom_volume_types.empty?
-    volume_types.reject! { |type| type.size.to_i < size }
-    minimum_size = volume_types.map { |type| type.size.to_i }.min
-    volume_types.reject! { |type| type.size.to_i != minimum_size }
-  else
-    volume_types = custom_volume_types
-  end
-
-  if volume_types.empty?
-    raise "Could not find a volume type that is large enough for #{size}"
-  elsif volume_types.size == 1
+params[:volume][:volume_type_href] =
+  case cloud_type
+  when 'rackspace-ng', 'vsphere'
+    volume_types = @client.volume_types.index
     volume_type = volume_types.first
-  elsif volume_types.first.resource_uid =~ /^[0-9]+$/
-    log "Found multiple valid volume types"
-    log "Using the volume type with the greatest numeric resource_uid"
-    volume_type = volume_types.max_by { |type| type.resource_uid.to_i }
+
+    volume_type.href
+  when "cloudstack"
+    volume_types = @client.volume_types.index
+    custom_volume_types = volume_types.select { |type| type.size.to_i == 0 }
+
+    if custom_volume_types.empty?
+      volume_types.reject! { |type| type.size.to_i < size }
+      minimum_size = volume_types.map { |type| type.size.to_i }.min
+      volume_types.reject! { |type| type.size.to_i != minimum_size }
+    else
+      volume_types = custom_volume_types
+    end
+
+    if volume_types.empty?
+      raise "Could not find a volume type that is large enough for #{size}"
+    elsif volume_types.size == 1
+      volume_type = volume_types.first
+    elsif volume_types.first.resource_uid =~ /^[0-9]+$/
+      log "Found multiple valid volume types"
+      log "Using the volume type with the greatest numeric resource_uid"
+      volume_type = volume_types.max_by { |type| type.resource_uid.to_i }
+    else
+      log "Found multiple valid volume types"
+      log "Using the first returned valid volume type"
+      volume_type = volume_types.first
+    end
+
+    if volume_type.size.to_i == 0
+      log "Found volume type that supports custom sizes:" +
+        " #{volume_type.name} (#{volume_type.resource_uid})"
+    else
+      log "Did not find volume type that supports custom sizes"
+      log "Using closest volume type: #{volume_type.name} (#{volume_type.resource_uid}) which is #{volume_type.size} GB"
+    end
+    volume_type.href
   else
-    log "Found multiple valid volume types"
-    log "Using the first returned valid volume type"
-    volume_type = volume_types.first
+    nil
   end
 
-  if volume_type.size.to_i == 0
-    log "Found volume type that supports custom sizes:" +
-      " #{volume_type.name} (#{volume_type.resource_uid})"
-  else
-    log "Did not find volume type that supports custom sizes"
-    log "Using closest volume type: #{volume_type.name} (#{volume_type.resource_uid}) which is #{volume_type.size} GB"
-  end
-
-  volume_type.href
-else
-  nil
-end
-
-log "Requests volume creation with params = #{params.inspect}"
+log "SINGLE VOLUME - Requests volume creation with params = #{params.inspect}"
 # Create volume and wait until the volume becomes "available" or "provisioned"
 created_volume = nil
 Timeout::timeout(900) do
@@ -178,12 +170,10 @@ Timeout::timeout(900) do
   # Wait until the volume is successfully created. A volume is said to be created
   # if volume status is "available" or "provisioned".
   name = created_volume.show.name
-  status = created_volume.show.status
-  while status != "available" && status != "provisioned"
-    log "Waiting for volume '#{name}' to create... Current status is '#{status}'"
+  while (status = created_volume.show.status) !~ /^available|provisioned$/
+    log "SINGLE VOLUME - Waiting for volume '#{name}' to create...current status is '#{status}'"
     raise "Creation of volume has failed." if status == "failed"
     sleep 2
-    status = created_volume.show.status
   end
 end
 
@@ -195,57 +185,51 @@ attachment_params = {
   }
 }
 
-log "Requests volume attachment with params = #{attachment_params.inspect}"
+log "SINGLE VOLUME - Requests volume attachment with params = #{attachment_params.inspect}"
 # Attach volume and wait until the volume becomes "in-use"
-attached_volume = nil
 Timeout::timeout(900) do
   attached_volume = @client.volume_attachments.create(attachment_params)
   name = created_volume.show.name
-  status = created_volume.show.status
-  state = attached_volume.show.state
-  while state != "attached" && status != "in-use"
-    log "Waiting for volume #{name} to attach... Current state / status is #{state} / #{status}"
+  while (state = attached_volume.show.state) != 'attached' && (status = created_volume.show.status) != 'in-use'
+    log "SINGLE VOLUME - Waiting for volume #{name} to attach... Current state / status is #{state} / #{status}"
     sleep 2
-    state = attached_volume.show.state
-    status = created_volume.show.status
   end
   raise "Volume is attached to wrong device" if attached_volume.show.device.inspect.split('"')[1] != device_list(cloud_type).first
   raise "Volume attachment is failed" if @client.volume_attachments.index(:filter => ["volume_href==#{created_volume.show.href}"]).nil?
   scan_for_attachments
-  log "attached volume + #{attached_volume.inspect}"
+  log "SINGLE VOLUME - attached volume: #{attached_volume.inspect}"
 end
 
-log "Formats the device and mounts it to a mount point"
+log "SINGLE VOLUME - Formats the device and mounts it to a mount point"
 actual_device = nil
 Timeout::timeout(900) do
   scan_for_attachments
-  log "now devices are #{get_current_devices}"
+  log "SINGLE VOLUME - current devices: #{get_current_devices}"
   while get_current_devices.size == initial_devices.size
-    log "Waiting for discovering newly created device..."
+    log "SINGLE VOLUME - Waiting for discovering newly created device..."
     sleep 2
     scan_for_attachments
   end
 
   actual_device = (get_current_devices - initial_devices)[0].to_s
 
-  log "Formatting #{actual_device}..."
-  log IO.read('/proc/partitions')
+  log "SINGLE VOLUME - Formatting #{actual_device}..."
   scan_for_attachments
   raise Exception unless system("mkfs.ext3 -F #{actual_device}")
 
-  log "Mounting #{actual_device} at #{mount_point}..."
+  log "SINGLE VOLUME - Mounting #{actual_device} at #{mount_point}..."
   raise Exception unless system("mkdir -p #{mount_point}")
   raise Exception unless system("mount #{actual_device} #{mount_point}")
 end
 
-log "Generates testfile and calculates fingerprint of this file"
+log "SINGLE VOLUME - Generates testfile and calculates fingerprint of this file"
 Timeout::timeout(900) do
-  log "Generating new testfile..."
+  log "SINGLE VOLUME - Generating new testfile..."
   raise "#{testfile} not created" unless system("dd if=/dev/urandom of=#{testfile} bs=16M count=8")
-  log "Calculating fingerprint of testfile..."
+  log "SINGLE VOLUME - Calculating fingerprint of testfile..."
   r = `md5sum #{testfile}`
   md5_orig = r.split(" ").first
-  log "md5_origin = #{md5_orig}"
+  log "SINGLE VOLUME - md5_origin = #{md5_orig}"
 end
 
 snapshot_params = {
@@ -256,122 +240,113 @@ snapshot_params = {
   }
 }
 
-log "Takes snapshot from attached volume - #{snapshot_params.inspect}"
-created_snapshot = nil
 Timeout::timeout(900) do
-  log "Taking snapshot #{snapshot_name} from volume #{volume_name1}..."
+  log "SINGLE VOLUME - Taking snapshot #{snapshot_name} of volume #{volume_name} - #{snapshot_params.inspect}"
   created_snapshot = @client.volume_snapshots.create(snapshot_params)
   name = created_snapshot.show.name
-  while ((state = created_snapshot.show.state) == "pending")
-    log "Waiting for snapshot '#{name}' to create... State is '#{state}'"
+  while (state = created_snapshot.show.state) == 'pending'
+    log "SINGLE VOLUME - Waiting for snapshot '#{name}' to create...state is '#{state}'"
     raise "Snapshot creation failed!" if state == "failed"
     sleep 2
   end
 end
 
-log "Unmount device"
 Timeout::timeout(900) do
-  log "Unmounting #{actual_device} from #{mount_point}..."
+  log "SINGLE VOLUME - Unmounting #{actual_device} from #{mount_point}..."
   raise Exception unless system("umount #{mount_point}")
 end
 
-log "Volume #{created_volume.show.name} is '#{created_volume.show.status}'"
-log "Performing volume detach..."
+log "SINGLE VOLUME - Performing volume detach..."
 Timeout::timeout(900) do
-  status = created_volume.show.status
   @client.volume_attachments.index(:filter => ["volume_href==#{created_volume.show.href}"]).first.destroy
-  while status == "in-use"
-    log "Waiting for volume '#{created_volume.show.name}' to detach. Status is '#{status}'..."
+  while (status = created_volume.show.status) == 'in-use'
+    log "SINGLE VOLUME - Waiting for volume '#{created_volume.show.name}' to detach. Status is '#{status}'..."
     sleep 2
-    status = created_volume.show.status
   end
-  raise "Volume does not have 'available' state" if status != "available"
+  raise "Volume is not in 'available' state" if status != "available"
 end
 
-params[:volume][:parent_volume_snapshot_href] = @client.volume_snapshots.index(:filter => ["parent_volume_href==#{created_volume.show.href}"]).first.show.href
-params[:volume][:name] = volume_name2
+log "SINGLE VOLUME - destroying volume #{created_volume.show.name}"
+parent_href = created_volume.show.href
+created_volume.destroy
+
+params[:volume][:parent_volume_snapshot_href] = @client.volume_snapshots.index(:filter => ["parent_volume_href==#{parent_href}"]).first.show.href
+params[:volume][:name] = volume_name
 params[:volume][:description] = "Restore volume from snapshot"
 
-log "Restores volume from snapshot"
-volume_from_snapshot = nil
 Timeout::timeout(900) do
-  log "Restoring volume from snapshot with params = #{params.inspect}"
+  log "SINGLE VOLUME - Restoring volume from snapshot with params = #{params.inspect}"
   volume_from_snapshot = @client.volumes.create(params)
   # Wait until the volume is successfully created. A volume is said to be created
   # if volume status is "available" or "provisioned".
   name = volume_from_snapshot.show.name
-  status = volume_from_snapshot.show.status
-  while status != "available" && status != "provisioned"
-    log "Waiting for volume '#{name}' from snapshot '#{created_snapshot.show.name}' to create... Current status is '#{status}'"
+  while (status = volume_from_snapshot.show.status) !~ /^available|provisioned$/
+    log "SINGLE VOLUME - Waiting for volume '#{name}' from snapshot '#{created_snapshot.show.name}' to create...current status is '#{status}'"
     raise "Creation of volume has failed." if status == "failed"
     sleep 2
-    status = volume_from_snapshot.show.status
   end
 end
 
 attachment_params[:volume_attachment][:volume_href] = volume_from_snapshot.show.href
 
-log "Requests volume attachment with params = #{attachment_params.inspect}"
-# Attach  volume and wait until the volume becomes "in-use"
-attached_volume2 = nil
+log "SINGLE VOLUME - Requests volume attachment with params = #{attachment_params.inspect}"
+# Attach volume and wait until the volume becomes "in-use"
 Timeout::timeout(900) do
-  attached_volume2 = @client.volume_attachments.create(attachment_params)
-  log "------"
+  attached_volume = @client.volume_attachments.create(attachment_params)
   name = volume_from_snapshot.show.name
-  status = volume_from_snapshot.show.status
-  state = attached_volume2.show.state
-  while state != "attached" && status != "in-use"
-    log "Waiting for volume #{name} to attach... Current state is status is #{status} / #{state}"
+  while (state = attached_volume.show.state) != 'attached' && (status = volume_from_snapshot.show.status) != 'in-use'
+    log "SINGLE VOLUME - Waiting for volume #{name} to attach... Current state is status is #{status} / #{state}"
     sleep 2
-    state = attached_volume2.show.state
-    status = volume_from_snapshot.show.status
   end
-  raise "Volume is attached to wrong device" if attached_volume2.show.device.inspect.split('"')[1] != device_list(cloud_type).first
-  raise "Volume attachment is failed" if @client.volume_attachments.index(:filter => ["volume_href==#{volume_from_snapshot.show.href}"]).nil?
+  raise "Volume is attached to wrong device" if attached_volume.show.device.inspect.split('"')[1] != device_list(cloud_type).first
+  raise "Volume attachment failed" if @client.volume_attachments.index(:filter => ["volume_href==#{volume_from_snapshot.show.href}"]).nil?
   scan_for_attachments
-  log "attached volume + #{attached_volume2.inspect}"
 end
 
-log "Mounts device to a mount point"
-actual_device = nil
-Timeout::timeout(900) do
-  scan_for_attachments
-  log "now devices are #{get_current_devices}"
-  while get_current_devices.size == initial_devices.size
-    log "Waiting for discovering newly created device..."
-    sleep 2
-    scan_for_attachments
-  end
+log "SINGLE VOLUME - Mount restored device to mount point"
+actual_device = (get_current_devices - initial_devices)[0].to_s
+scan_for_attachments
+log "SINGLE VOLUME - Mounting #{actual_device} at #{mount_point}..."
+raise Exception unless system("mount #{actual_device} #{mount_point}")
 
-  actual_device = (get_current_devices - initial_devices)[0].to_s
-
-  log IO.read('/proc/partitions')
-  scan_for_attachments
-
-  log "Mounting #{actual_device} at #{mount_point}..."
-  raise Exception unless system("mount #{actual_device} #{mount_point}")
-end
-
-log "Verify the fingerprint of testfile..."
+log "SINGLE VOLUME - Verify the fingerprint of testfile..."
 Timeout::timeout(900) do
   r = `md5sum #{testfile}`
   md5_snap = r.split(" ").first
-  log "md5_snap = #{md5_snap}"
+  log "SINGLE VOLUME - md5_snap = #{md5_snap}"
   raise "Signatures don't match. Orig:#{md5_orig}, From Snapshot:#{md5_snap}" unless md5_orig == md5_snap
 end
 
+Timeout::timeout(900) do
+  log "SINGLE VOLUME - Unmounting restored device #{actual_device} from #{mount_point}..."
+  raise Exception unless system("umount #{mount_point}")
+end
 
-log "Requesting #{volumes_count-1} volumes creation..."
+log "SINGLE VOLUME - Performing volume detach of restored device..."
+Timeout::timeout(900) do
+  @client.volume_attachments.index(:filter => ["volume_href==#{volume_from_snapshot.show.href}"]).first.destroy
+  while (status = volume_from_snapshot.show.status) == 'in-use'
+    log "SINGLE VOLUME - Waiting for restored volume '#{volume_from_snapshot.show.name}' to detach. Status is '#{status}'..."
+    sleep 2
+  end
+  raise "Volume is not in 'available' state" if status != "available"
+end
+
+log "SINGLE VOLUME - destroying restored volume #{volume_from_snapshot.show.name}"
+volume_from_snapshot.destroy
+
+exit
+
+log "Requesting 2 volumes creation..."
 created_volumes = []
 Timeout::timeout(900) do
-  (1..volumes_count-1).each do |i|
-    params[:volume][:name] = volume_name3 + i.to_s
+  2.each do |i|
+    params[:volume][:name] = volume_name + '_' + i.to_s
     created_volumes << @client.volumes.create(params)
   end
 end
 
 created_volumes.each do |vol|
-
   Timeout::timeout(900) do
     # Wait until the volume is successfully created. A volume is said to be created
     # if volume status is "available" or "provisioned".
@@ -387,50 +362,40 @@ created_volumes.each do |vol|
 end
 
 log "Requests multiple volume attachments..."
-# Attach  volumes and wait until the volume becomes "in-use"
-attach_volumes = []
+# Attach multiple volumes and wait until all volumes become "in-use"
 created_volumes.each_index do |i|
 
   Timeout::timeout(900) do
-
     attach_params = {
       :volume_attachment => {
-        :device => device_list(cloud_type)[i+1],
+        :device => device_list(cloud_type)[i],
         :instance_href => @client.get_instance.show.href,
         :volume_href => created_volumes[i].show.href,
       }
     }
 
-    attach_volumes.push(@client.volume_attachments.create(attach_params))
+    attachment = @client.volume_attachments.create(attach_params)
+
     name = created_volumes[i].show.name
-    status = created_volumes[i].show.status
-    state = attach_volumes[i].show.state
-    log attach_volumes[i].show.volume.methods
-    while state != "attached" && status != "in-use"
-      log "Waiting for volume #{name} to attach... Current state / status is #{state} / #{status}"
+    while (state = attachment.show.state) != 'attached' && (status = created_volumes[i].show.status) != 'in-use'
+      log "Waiting for volume #{name} to attach...current state / status is #{state} / #{status}"
       sleep 2
-      state = attach_volumes[i].show.state
-      status = created_volumes[i].show.status
     end
-    raise "Volume attachment is failed" if @client.volume_attachments.index(:filter => ["volume_href==#{created_volumes[i].show.href}"]).nil?
+    raise "Volume attachment failed" if @client.volume_attachments.index(:filter => ["volume_href==#{created_volumes[i].show.href}"]).nil?
   end
 end
 
 log "Requesting multiple volume backups (volume snapshots)..."
-attached_volumes = []
 Timeout::timeout(900) do
   attached_volumes = @client.volume_attachments.index(:filter => ["instance_href==#{instance.href}"])
 
-  attached_volume_hrefs = []
-  attached_volumes.each do |vol|
-    attached_volume_hrefs << vol.href
-  end
+  attached_volumes_hrefs = attached_volumes.map { |attachment| attachment.href }
 
   params = {
     :backup => {
       :lineage => 'test-vsphere-lineage',
       :name => 'test-vsphere-nickname',
-      :volume_attachment_hrefs => attached_volume_hrefs,
+      :volume_attachment_hrefs => attached_volumes_hrefs,
       :description => 'test description'
     }
   }
@@ -450,7 +415,7 @@ created_volumes.each do |vol|
   Timeout::timeout(900) do
     status = vol.show.status
     @client.volume_attachments.index(:filter => ["volume_href==#{vol.show.href}"]).first.destroy
-    while status == "in-use"
+    while status == 'in-use'
       log "Waiting for volume '#{vol.show.name}' to detach. Status is '#{status}'..."
       sleep 2
       status = vol.show.status
@@ -518,4 +483,3 @@ created_volumes.each do |vol|
     end
   end
 end
-
