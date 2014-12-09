@@ -220,7 +220,7 @@ end
 attachment_params = {
   :volume_attachment => {
     :volume_href => created_volume.show.href,
-    :instance_href => @client.get_instance.show.href,
+    :instance_href => instance.show.href,
     :device => device_list(cloud_type).first,
   }
 }
@@ -379,8 +379,7 @@ log "SINGLE VOLUME - destroying restored volume #{volume_from_snapshot.show.name
 volume_from_snapshot.destroy
 scan_for_detachments
 
-=begin
-log "Requesting 2 volumes creation..."
+log "MULTI VOLUME - Requesting multi volumes creation..."
 created_volumes = []
 Timeout::timeout(900) do
   2.each do |i|
@@ -394,25 +393,22 @@ created_volumes.each do |vol|
     # Wait until the volume is successfully created. A volume is said to be created
     # if volume status is "available" or "provisioned".
     name = vol.show.name
-    status = vol.show.status
-    while status != "available" && status != "provisioned"
-      log "Waiting for volume '#{name}' to create... Current status is '#{status}'"
+    while (status = vol.show.status) !~ /^available|provisioned$/
+      log "MULTI VOLUME - Waiting for volume '#{name}' to create...current status is '#{status}'"
       raise "Creation of volume has failed." if status == "failed"
       sleep 2
-      status = vol.show.status
     end
   end
 end
 
-log "Requests multiple volume attachments..."
+log "MULTI VOLUME - Requests multiple volume attachments..."
 # Attach multiple volumes and wait until all volumes become "in-use"
 created_volumes.each_index do |i|
-
   Timeout::timeout(900) do
     attach_params = {
       :volume_attachment => {
         :device => device_list(cloud_type)[i],
-        :instance_href => @client.get_instance.show.href,
+        :instance_href => instance.show.href,
         :volume_href => created_volumes[i].show.href,
       }
     }
@@ -421,14 +417,15 @@ created_volumes.each_index do |i|
 
     name = created_volumes[i].show.name
     while (state = attachment.show.state) != 'attached' && (status = created_volumes[i].show.status) != 'in-use'
-      log "Waiting for volume #{name} to attach...current state / status is #{state} / #{status}"
+      log "MULTI VOLUME - Waiting for volume #{name} to attach...current state / status is #{state} / #{status}"
       sleep 2
     end
     raise "Volume attachment failed" if @client.volume_attachments.index(:filter => ["volume_href==#{created_volumes[i].show.href}"]).nil?
   end
 end
+scan_for_attachments
 
-log "Requesting multiple volume backups (volume snapshots)..."
+log "MULTI VOLUME - Requesting multiple volume backups (volume snapshots)..."
 Timeout::timeout(900) do
   attached_volumes = @client.volume_attachments.index(:filter => ["instance_href==#{instance.href}"])
 
@@ -445,85 +442,25 @@ Timeout::timeout(900) do
   new_backup = @client.backups.create(params)
 end
 
-log "----------- Cleanup after test ------------"
-log "Unmount device"
-Timeout::timeout(900) do
-  log "Unmounting #{actual_device} from #{mount_point}..."
-  raise Exception unless system("umount #{mount_point}")
-end
-
-log "Performing volumes detach..."
-created_volumes.push(volume_from_snapshot)
-created_volumes.each do |vol|
-  Timeout::timeout(900) do
-    status = vol.show.status
-    @client.volume_attachments.index(:filter => ["volume_href==#{vol.show.href}"]).first.destroy
-    while status == 'in-use'
-      log "Waiting for volume '#{vol.show.name}' to detach. Status is '#{status}'..."
-      sleep 2
-      status = vol.show.status
-    end
-    raise "Volume does not have 'available' state" if status != "available"
-  end
-end
-
-log "Removes snapshot #{created_snapshot.show.name}"
-Timeout::timeout(900) do
-  name = created_snapshot.show.name
-  resource_uid = created_snapshot.show.resource_uid
-  log "Removing volume snapshot..."
-  @client.volume_snapshots.index(:filter => ["resource_uid==#{resource_uid}"]).first.destroy
-  sleep 2
-  begin
-    while !@client.volume_snapshots.index(:filter => ["resource_uid==#{resource_uid}"]).nil?
-      log "Waiting for snapshot '#{name}' to delete. State is '#{created_snapshot.show.state}'..."
-      sleep 2
-    end
-  rescue Exception => e
-    log "Snapshot #{name} has been deleted"
-  end
-end
-
-log "Removes backups..."
-attached_volumes.each do |vol|
-
-  Timeout::timeout(900) do
-    href = vol.show.volume.show.href
-    name = @client.volume_snapshots.index(:filter => ["parent_volume_href==#{href}"]).first.show.name
-    log "Removing volume snapshots #{name}..."
-    @client.volume_snapshots.index(:filter => ["parent_volume_href==#{href}"]).first.destroy
-    sleep 2
-    begin
-      while !@client.volume_snapshots.index(:filter => ["parent_volume_href==#{href}"]).nil?
-        log "Waiting for snapshot '#{name}' to delete. State is '#{@client.volume_snapshots.index(:filter => ["parent_volume_href==#{href}"]).first.show.state}'..."
-        sleep 2
-      end
-    rescue Exception => e
-      log "Snapshot #{name} has been deleted"
-    end
-  end
-
-end
-
-log "Removes volumes..."
-created_volumes.push(created_volume)
+log "MULTI VOLUME - Performing volumes detach..."
 created_volumes.each do |vol|
   Timeout::timeout(900) do
     name = vol.show.name
-    log "Removing volume #{name}..."
-    begin
-      @client.volumes.index(:filter => ["name==#{name}"]).first.destroy
-    rescue Exception => e
-      retry
+    @client.volume_attachments.index(:filter => ["volume_href==#{vol.show.href}"]).first.destroy
+    while (status = vol.show.status) == 'in-use'
+      log "MULTI VOLUME - Waiting for volume '#{name}' to detach. Status is '#{status}'..."
+      sleep 2
     end
-    begin
-      while !@client.volumes.index(:filter => ["name==#{name}"]).nil?
-        log "Waiting for volume '#{name}' to delete. Status is '#{vol.show.status}'..."
-        sleep 2
-      end
-    rescue Exception => e
-      log "Volume #{name} has been deleted"
-    end
+    final_state = vol.show.status
+    raise "Final state is not 'available': #{final_state}" if final_state != 'available'
   end
 end
-=end
+scan_for_detachments
+
+log "MULTI VOLUME - destroy volumes"
+created_volumes.each do |vol|
+  vol.destroy
+end
+
+# TODO
+#log "MULTI VOLUME - destroy snapshots"
