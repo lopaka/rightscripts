@@ -136,8 +136,6 @@ testfile = mount_point + '/testfile'
 md5_snap = nil
 md5_orig = nil
 
-initial_devices = get_current_devices
-
 # Set required parameters
 params = {
   :volume => {
@@ -201,6 +199,8 @@ params[:volume][:volume_type_href] =
 log "SINGLE VOLUME - initial scanning for attached and detached devices"
 scan_for_attachments
 scan_for_detachments
+
+initial_devices = get_current_devices
 
 log "SINGLE VOLUME - Requests volume creation with params = #{params.inspect}"
 # Create volume and wait until the volume becomes "available" or "provisioned"
