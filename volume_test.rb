@@ -128,7 +128,7 @@ instance = @client.get_instance
 cloud_type = IO.read('/etc/rightscale.d/cloud').strip
 
 # set variables
-size = cloud_type == "rackspace-ng" ? 100 : 1
+size = cloud_type == "rackspace-ng" ? 100 : 10
 volume_name = "QTEST VOLUME"
 snapshot_name = "QTEST SNAPSHOT"
 mount_point = '/mnt/storage'
