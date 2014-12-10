@@ -136,7 +136,7 @@ testfile = mount_point + '/testfile'
 md5_snap = nil
 md5_orig = nil
 
-multi_volume_count = 2
+multi_volume_count = (ENV['MULTI_VOLUME_COUNT'] || 2).to_i
 
 # Set required parameters
 params = {
