@@ -213,7 +213,7 @@ Timeout::timeout(900) do
   # if volume status is "available" or "provisioned".
   name = created_volume.show.name
   while (status = created_volume.show.status) !~ /^available|provisioned$/
-    log "SINGLE VOLUME - Waiting for volume '#{name}' to create...current status is '#{status}'"
+    log "SINGLE VOLUME - Waiting for volume '#{name}' to create...current status is '#{status}' - #{Time.now.utc}"
     raise "Creation of volume has failed." if status == "failed"
     sleep 2
   end
@@ -233,7 +233,7 @@ Timeout::timeout(900) do
   attached_volume = @client.volume_attachments.create(attachment_params)
   name = created_volume.show.name
   while (state = attached_volume.show.state) != 'attached' && (status = created_volume.show.status) != 'in-use'
-    log "SINGLE VOLUME - Waiting for volume #{name} to attach... Current state / status is #{state} / #{status}"
+    log "SINGLE VOLUME - Waiting for volume #{name} to attach... Current state / status is #{state} / #{status} - #{Time.now.utc}"
     sleep 2
   end
   raise "Volume is attached to wrong device" if attached_volume.show.device.inspect.split('"')[1] != device_list(cloud_type).first
@@ -248,7 +248,7 @@ Timeout::timeout(900) do
   scan_for_attachments
   log "SINGLE VOLUME - current devices: #{get_current_devices}"
   while get_current_devices.size == initial_devices.size
-    log "SINGLE VOLUME - Waiting for discovering newly created device..."
+    log "SINGLE VOLUME - Waiting for discovering newly created device - #{Time.now.utc}"
     sleep 2
     scan_for_attachments
   end
@@ -287,7 +287,7 @@ Timeout::timeout(900) do
   created_snapshot = @client.volume_snapshots.create(snapshot_params)
   name = created_snapshot.show.name
   while (state = created_snapshot.show.state) == 'pending'
-    log "SINGLE VOLUME - Waiting for snapshot '#{name}' to create...state is '#{state}'"
+    log "SINGLE VOLUME - Waiting for snapshot '#{name}' to create...state is '#{state}' - #{Time.now.utc}"
     raise "Snapshot creation failed!" if state == "failed"
     sleep 2
   end
@@ -302,7 +302,7 @@ log "SINGLE VOLUME - Performing volume detach..."
 Timeout::timeout(900) do
   @client.volume_attachments.index(:filter => ["volume_href==#{created_volume.show.href}"]).first.destroy
   while (status = created_volume.show.status) == 'in-use'
-    log "SINGLE VOLUME - Waiting for volume '#{created_volume.show.name}' to detach. Status is '#{status}'..."
+    log "SINGLE VOLUME - Waiting for volume '#{created_volume.show.name}' to detach. Status is '#{status}' - #{Time.now.utc}"
     sleep 2
   end
   raise "Volume is not in 'available' state" if status != "available"
@@ -326,7 +326,7 @@ Timeout::timeout(900) do
   # if volume status is "available" or "provisioned".
   name = volume_from_snapshot.show.name
   while (status = volume_from_snapshot.show.status) !~ /^available|provisioned$/
-    log "SINGLE VOLUME - Waiting for volume '#{name}' from snapshot '#{created_snapshot.show.name}' to create...current status is '#{status}'"
+    log "SINGLE VOLUME - Waiting for volume '#{name}' from snapshot '#{created_snapshot.show.name}' to create...current status is '#{status}' - #{Time.now.utc}"
     raise "Creation of volume has failed." if status == "failed"
     sleep 2
   end
@@ -340,7 +340,7 @@ Timeout::timeout(900) do
   attached_volume = @client.volume_attachments.create(attachment_params)
   name = volume_from_snapshot.show.name
   while (state = attached_volume.show.state) != 'attached' && (status = volume_from_snapshot.show.status) != 'in-use'
-    log "SINGLE VOLUME - Waiting for volume #{name} to attach... Current state is status is #{status} / #{state}"
+    log "SINGLE VOLUME - Waiting for volume #{name} to attach... Current state is status is #{status} / #{state} - #{Time.now.utc}"
     sleep 2
   end
   raise "Volume is attached to wrong device" if attached_volume.show.device.inspect.split('"')[1] != device_list(cloud_type).first
@@ -371,7 +371,7 @@ log "SINGLE VOLUME - Performing volume detach of restored device..."
 Timeout::timeout(900) do
   @client.volume_attachments.index(:filter => ["volume_href==#{volume_from_snapshot.show.href}"]).first.destroy
   while (status = volume_from_snapshot.show.status) == 'in-use'
-    log "SINGLE VOLUME - Waiting for restored volume '#{volume_from_snapshot.show.name}' to detach. Status is '#{status}'..."
+    log "SINGLE VOLUME - Waiting for restored volume '#{volume_from_snapshot.show.name}' to detach. Status is '#{status}' - #{Time.now.utc}"
     sleep 2
   end
   raise "Volume is not in 'available' state" if status != "available"
@@ -397,7 +397,7 @@ created_volumes.each do |vol|
     name = vol.show.name
     log "MULTI VOLUME - Checking for creation of volume '#{name}'"
     while (status = vol.show.status) !~ /^available|provisioned$/
-      log "MULTI VOLUME - Waiting for volume '#{name}' to create...current status is '#{status}'"
+      log "MULTI VOLUME - Waiting for volume '#{name}' to create...current status is '#{status}' - #{Time.now.utc}"
       raise "Creation of volume has failed." if status == "failed"
       sleep 2
     end
@@ -421,7 +421,7 @@ created_volumes.each_with_index do |vol, i|
     name = vol.show.name
     log "MULTI VOLUME - Requesting attachement of #{name}"
     while (state = attachment.show.state) != 'attached' && (status = vol.show.status) != 'in-use'
-      log "MULTI VOLUME - Waiting for volume #{name} to attach...current state / status is #{state} / #{status}"
+      log "MULTI VOLUME - Waiting for volume #{name} to attach...current state / status is #{state} / #{status} - #{Time.now.utc}"
       sleep 2
     end
     raise "Volume attachment failed" if @client.volume_attachments.index(:filter => ["volume_href==#{vol.show.href}"]).nil?
@@ -448,7 +448,7 @@ Timeout::timeout(900) do
   }
   multi_vol_snapshot = @client.backups.create(params)
   while (completed = multi_vol_snapshot.show.completed) != true
-    log "MULTI VOLUME - Waiting for snapshot to complete...state is '#{completed}'"
+    log "MULTI VOLUME - Waiting for snapshot to complete...state is '#{completed}' - #{Time.now.utc}"
     sleep 2
   end
 end
@@ -462,7 +462,7 @@ created_volumes.each do |vol|
     name = vol.show.name
     @client.volume_attachments.index(:filter => ["volume_href==#{vol.show.href}"]).first.destroy
     while (status = vol.show.status) == 'in-use'
-      log "MULTI VOLUME - Waiting for volume '#{name}' to detach. Status is '#{status}'..."
+      log "MULTI VOLUME - Waiting for volume '#{name}' to detach. Status is '#{status}' - #{Time.now.utc}"
       sleep 2
     end
     final_state = vol.show.status
