@@ -31,7 +31,7 @@ if [[ -d '/etc/yum.repos.d' ]]; then
   yum --assumeyes update glibc
 
   # checking if reboot is required
-  [[ `needs-restarting | wc -l` -eq '0' ]] && requires_reboot=true || requires_reboot=false
+  [[ `needs-restarting | wc -l` -ne '0' ]] && requires_reboot=true || requires_reboot=false
 
 elif [[ -d '/etc/apt' ]]; then
   sed --in-place "s%ubuntu_daily/.* $(lsb_release -cs)-security%ubuntu_daily/latest $(lsb_release -cs)-security%" /etc/apt/sources.list.d/rightscale.sources.list
