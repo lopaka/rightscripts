@@ -26,12 +26,24 @@ if [[ -d '/etc/yum.repos.d' ]]; then
   sed --in-place 's%/archive/20[0-9]*%/archive/latest%' /etc/yum.repos.d/*.repo
   yum makecache
   yum --assumeyes --security update
-  #  for glibc update on centos 6.6 and 7.0: yum update glibc
+  # for glibc update on centos 6.6 and 7.0: yum update glibc
+
+  # checking if reboot is required
+  [[ `needs-restarting | wc -l` -eq '0' ]] && requires_reboot=true || requires_reboot=false
+
 elif [[ -d '/etc/apt' ]]; then
   sed --in-place "s%ubuntu_daily/.* $(lsb_release -cs)-security%ubuntu_daily/latest $(lsb_release -cs)-security%" /etc/apt/sources.list.d/rightscale.sources.list
   apt-get --assume-yes update
   apt-get --assume-yes dist-upgrade
+
+  # checking if reboot is required
+  [[ -e '/var/run/reboot-required' ]] && requires_reboot=true || requires_reboot=false
 else
   echo "unsupported distribution."
   exit 1
+fi
+
+if [[ $requires_reboot == true ]]; then
+  echo "REBOOT IS REQUIRED FOR SECURITY UPDATES TO TAKE EFFECT."
+  logger -s -t RightScale "REBOOT IS REQUIRED FOR SECURITY UPDATES TO TAKE EFFECT."
 fi
