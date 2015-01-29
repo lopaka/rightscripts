@@ -28,7 +28,7 @@ if [[ -d '/etc/yum.repos.d' ]]; then
   yum --assumeyes --security update
   #  for glibc update on centos 6.6 and 7.0: yum update glibc
 elif [[ -d '/etc/apt' ]]; then
-  sed --in-place 's%ubuntu_daily/.* $(lsb_release -cs)-security%ubuntu_daily/latest $(lsb_release -cs)-security%' /etc/apt/sources.list.d/rightscale.sources.list
+  sed --in-place "s%ubuntu_daily/.* $(lsb_release -cs)-security%ubuntu_daily/latest $(lsb_release -cs)-security%" /etc/apt/sources.list.d/rightscale.sources.list
   apt-get --assume-yes update
   apt-get --assume-yes dist-upgrade
 else
