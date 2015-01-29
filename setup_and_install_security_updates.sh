@@ -26,7 +26,9 @@ if [[ -d '/etc/yum.repos.d' ]]; then
   sed --in-place 's%/archive/20[0-9]*%/archive/latest%' /etc/yum.repos.d/*.repo
   yum makecache
   yum --assumeyes --security update
-  # for glibc update on centos 6.6 and 7.0: yum update glibc
+  # Fix for the Ghost exploit (CVE-2015-0235) is avail as of 20150128, but not as a security update for CentOS. 
+  # Following will update glibc and dependencies only.
+  yum --assumeyes update glibc
 
   # checking if reboot is required
   [[ `needs-restarting | wc -l` -eq '0' ]] && requires_reboot=true || requires_reboot=false
