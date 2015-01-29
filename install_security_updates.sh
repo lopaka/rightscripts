@@ -22,13 +22,20 @@ if [[ $SECURITY_UPDATES != "enable" ]]; then
   exit
 fi
 
-# on centos:
-# sed --in-place 's%/archive/20[0-9]*%/archive/latest%' /etc/yum.repos.d/*.repo
-# yum makecache
-# yum --security update
-#  for glibc update on centos 6.6 and 7.0: yum update glibc
-
-# on ubuntu:
-# sed -i 's%ubuntu_daily/.* $(lsb_release -cs)-security%ubuntu_daily/latest $(lsb_release -cs)-security%' /etc/apt/sources.list.d/rightscale.sources.list
-# apt-get --yes update
-# apt-get --yes dist-upgrade
+case $RS_DISTRO in
+(centos|redhatenterpriseserver)
+  sed --in-place 's%/archive/20[0-9]*%/archive/latest%' /etc/yum.repos.d/*.repo
+  yum makecache
+  yum --security update
+  #  for glibc update on centos 6.6 and 7.0: yum update glibc
+  ;;
+(ubuntu|debian)
+  sed --in-place 's%ubuntu_daily/.* $(lsb_release -cs)-security%ubuntu_daily/latest $(lsb_release -cs)-security%' /etc/apt/sources.list.d/rightscale.sources.list
+  apt-get --yes update
+  apt-get --yes dist-upgrade
+  ;;
+(*)
+  echo "unsupported distribution '$RS_DISTRO'!"
+  exit 1
+  ;;
+esac
