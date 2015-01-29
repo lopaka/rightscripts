@@ -16,22 +16,17 @@
 
 set -ex
 
-# Check if security updates are enabled.  If not, exit.
-if [[ $SECURITY_UPDATES != 'enable' ]]; then
-  echo 'Security Updates not enabled'
-  exit
-fi
-
 if [[ -d '/etc/yum.repos.d' ]]; then
-  sed --in-place 's%/archive/20[0-9]*%/archive/latest%' /etc/yum.repos.d/*.repo
-  yum makecache
-  yum --security update
-  #  for glibc update on centos 6.6 and 7.0: yum update glibc
+  # centos
+  yum --assumeyes install gcc
 elif [[ -d '/etc/apt' ]]; then
-  sed --in-place 's%ubuntu_daily/.* $(lsb_release -cs)-security%ubuntu_daily/latest $(lsb_release -cs)-security%' /etc/apt/sources.list.d/rightscale.sources.list
-  apt-get --yes update
-  apt-get --yes dist-upgrade
+  # ubuntu
+  apt-get --assume-yes install gcc build-essential
 else
-  echo "unsupported distribution."
+  echo "unsupported distribution!"
   exit 1
 fi
+
+wget --directory-prefix=/tmp https://raw.githubusercontent.com/lopaka/scratch/master/ghost.c 
+
+gcc -o /tmp/ghost /tmp/ghost.c
